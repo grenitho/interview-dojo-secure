@@ -131,7 +131,7 @@
                     chatHistory.push({ role: "user", parts: [{ text: message }] });
                     chatHistory.push({ role: "model", parts: [{ text: data.reply }] });
                     
-                    if(!hidden) addMessage(data.reply, "ai");
+                    addMessage(data.reply, "ai");
                 }
             } catch (error) {
                 console.error(error);
@@ -157,4 +157,5 @@
         }
     </script>
 </body>
+
 </html>
