@@ -19,7 +19,7 @@ exports.handler = async function(event, context) {
 
     // Inisialisasi Google AI
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
 
     // Mulai Chat dengan history yang dibawa dari Frontend
     const chat = model.startChat({
