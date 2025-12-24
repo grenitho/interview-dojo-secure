@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Global Career Simulator</title>
+    <style>
+        :root { --primary: #2563eb; --bg: #f8fafc; --chat-bg: #ffffff; }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); display: flex; justify-content: center; height: 100vh; margin: 0; }
+        .container { width: 100%; max-width: 600px; background: var(--chat-bg); display: flex; flex-direction: column; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+        
+        #setup-screen { padding: 40px; display: flex; flex-direction: column; gap: 20px; justify-content: center; height: 100%; }
+        h1 { color: #1e293b; text-align: center; }
+        input, select, button { padding: 15px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 16px; }
+        button { background: var(--primary); color: white; border: none; cursor: pointer; font-weight: bold; transition: 0.2s; }
+        button:hover { background: #1d4ed8; }
+
+        #chat-screen { display: none; flex-direction: column; height: 100%; }
+        #header { padding: 15px; background: white; border-bottom: 1px solid #e2e8f0; font-weight: bold; color: var(--primary); text-align: center; }
+        #chat-box { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 15px; }
+        .message { max-width: 80%; padding: 12px 16px; border-radius: 12px; line-height: 1.5; font-size: 15px; }
+        .user-msg { align-self: flex-end; background: var(--primary); color: white; border-bottom-right-radius: 2px; }
+        .ai-msg { align-self: flex-start; background: #f1f5f9; color: #1e293b; border-bottom-left-radius: 2px; border: 1px solid #e2e8f0; }
+        #input-area { padding: 20px; border-top: 1px solid #e2e8f0; display: flex; gap: 10px; background: white; }
+        .typing { font-style: italic; color: #64748b; font-size: 12px; margin-left: 10px; display: none; }
+    </style>
+</head>
+<body>
+
+    <div id="setup-screen" class="container">
+        <h1>Global Career Simulator</h1>
+        <p style="text-align: center; color: #64748b;">Practice High-Ticket Interviews with AI</p>
+        <input type="text" id="user-name" placeholder="Enter your full name">
+        <select id="user-role">
+            <option value="" disabled selected>Select Position...</option>
+            <option value="Backend Developer">Backend Developer</option>
+            <option value="Frontend Developer">Frontend Developer</option>
+            <option value="UI/UX Designer">UI/UX Designer</option>
+            <option value="Data Analyst">Data Analyst</option>
+            <option value="Virtual Assistant">Virtual Assistant</option>
+            <option value="Content Writer">Content Writer</option>
+        </select>
+        <button onclick="startInterview()">START INTERVIEW DOJO</button>
+    </div>
+
+    <div id="chat-screen" class="container">
+        <div id="header">INTERVIEW DOJO • LIVE</div>
+        <div id="chat-box"></div>
+        <div class="typing" id="typing-indicator">Alex is typing...</div>
+        <div id="input-area">
+            <input type="text" id="user-input" placeholder="Type answer..." onkeypress="handleEnter(event)">
+            <button onclick="handleUserSend()">SEND</button>
+        </div>
+    </div>
+
+    <script>
+        // --- LOGIC FRONTEND AMAN ---
+        let chatHistory = []; // Kita simpan history di sini lalu kirim ke backend
+        
+        // SYSTEM INSTRUCTION (JSON Logic)
+        const systemInstruction = `
+        You are Alex, a Hiring Manager at a US Tech Company. 
+        Tone: Direct, Professional, Fast-paced. No small talk.
+        Role Knowledge:
+        - Backend: Scaling, DB optimization.
+        - Frontend: Performance, State management.
+        - UI/UX: Design systems, stakeholder pushback.
+        - Data: SQL accuracy, Business insights.
+        - VA: Chaos management, prioritization.
+        
+        Phase 1: Detect input 'NAME: [Name], ROLE: [Role]'. Extract them. Immediately ask a hard opening question specific to that role.
+        Phase 2: Challenge every user answer. Drill down.
+        Phase 3: After 4 turns, STOP and give a SCORECARD in INDONESIAN (Technical Clarity, Confidence, Verdict).
+        `;
+
+        // Masukkan System Instruction ke history awal
+        chatHistory.push({
+            role: "user",
+            parts: [{ text: "SYSTEM_INSTRUCTION: " + systemInstruction }]
+        });
+        chatHistory.push({
+            role: "model",
+            parts: [{ text: "Understood. I am Alex. Ready to interview." }]
+        });
+
+        async function startInterview() {
+            const userName = document.getElementById("user-name").value;
+            const userRole = document.getElementById("user-role").value;
+            if(!userName || !userRole) { alert("Please fill all fields"); return; }
+
+            document.getElementById("setup-screen").style.display = "none";
+            document.getElementById("chat-screen").style.display = "flex";
+
+            // Kirim Hidden Message Pertama
+            const hiddenMsg = `NAME: ${userName}, ROLE: ${userRole}`;
+            await sendMessageToBackend(hiddenMsg, true);
+        }
+
+        async function handleUserSend() {
+            const inputField = document.getElementById("user-input");
+            const text = inputField.value;
+            if (!text) return;
+            
+            addMessage(text, "user");
+            inputField.value = "";
+            await sendMessageToBackend(text, false);
+        }
+
+        async function sendMessageToBackend(message, hidden) {
+            if(!hidden) showTyping(true);
+
+            try {
+                // PANGGIL NETLIFY FUNCTION (Bukan Google Langsung)
+                const response = await fetch('/.netlify/functions/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        history: chatHistory, 
+                        message: message 
+                    })
+                });
+
+                const data = await response.json();
+
+                if(!hidden) showTyping(false);
+
+                if (data.error) {
+                    addMessage("Error: " + data.error, "ai");
+                } else {
+                    // Update History Lokal
+                    chatHistory.push({ role: "user", parts: [{ text: message }] });
+                    chatHistory.push({ role: "model", parts: [{ text: data.reply }] });
+                    
+                    if(!hidden) addMessage(data.reply, "ai");
+                }
+            } catch (error) {
+                console.error(error);
+                showTyping(false);
+                addMessage("Connection Error.", "ai");
+            }
+        }
+
+        function handleEnter(e) { if (e.key === "Enter") handleUserSend(); }
+
+        function addMessage(text, sender) {
+            const chatBox = document.getElementById("chat-box");
+            const div = document.createElement("div");
+            div.className = `message ${sender}-msg`;
+            let formatted = text.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>').replace(/\n/g, '<br>');
+            div.innerHTML = formatted;
+            chatBox.appendChild(div);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        function showTyping(show) {
+            document.getElementById("typing-indicator").style.display = show ? "block" : "none";
+        }
+    </script>
+</body>
+</html>
